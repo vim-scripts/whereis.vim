@@ -1,6 +1,6 @@
 " File: whereis.vim
 " Author: Lechee.Lai 
-" Version: 1.0
+" Version: 1.1
 " 
 " goal:
 "   make it easy to find file in deep struct directory like BIOS develop  
@@ -10,6 +10,8 @@
 " TODO:
 "   of course remember last search directory is better for env(bhome) could 
 " someone give me a hint 
+"   directory complete in input() is possible ?
+"
 " 
 " ============ Output Format =====================
 " C:\vim\vim62\plugin\vgrep.vim
@@ -19,11 +21,24 @@
 " Command :Whereis 
 "         :Vwhereis View whereis result and select by ENTER
 "
+" Change Vwhereis_Key as you want
+" dir.vim is syntax for whereis output add dir.vim in your filetype.vim 
+" and copy dir.vim to syntax directory
+" ==== filetype.vim =====
+" " Directory files
+" au BufNewFile,BufRead *.dir                     setf dir
+"
+" 1.1 
+"   Fixed Win9x have different output with Bare mode
 "
 if exists("loaded_whereis") || &cp
     finish
 endif
 let loaded_whereis = 1
+
+if !exists("Vwhereis_Key")
+    let Vwhereis_Key = 'În'   " Alt-F7
+endif
 
 if !exists("Whereis_Output")
 	let Whereis_Output = 'c:\fte.dir'
@@ -45,6 +60,7 @@ if !exists("Whereis_Null_Device")
     endif
 endif
  
+exe "nnoremap <unique> <silent> " . Vwhereis_Key . " :call <SID>RunVwhereis()<CR>"
 
 " RunWhereisCmd()
 " Run the specified whereis command using the supplied pattern
@@ -79,7 +95,35 @@ endfunction
 "
 function! s:EditFile()
     let fname = getline('.')
-    exe 'edit ' . fname
+    echo "has nothing"
+    if !has("win32")
+    " for win9x        
+      let i = strlen(fname)
+      let ix = stridx(fname," ")
+      if i != ix  && ix != -1
+         let name = strpart(fname,0,ix)
+         let ext = strpart(fname,ix,i-ix)
+         let j = 0
+         let done = 0
+         while done == 0
+            let A = ext[j]  
+            if A == " "
+                let j = j + 1
+            else
+                let done = 1    
+            endif	  
+         endwhile
+         let ext = strpart(fname,ix+j,i-ix-j)        
+"         echo i ."..". ix ."[".name . "." . ext . "]" 
+         exe 'edit ' . name .".". ext
+      else 
+         exe 'edit ' . fname     
+      endif
+    endif
+    if has("win32")
+    " for winNT        
+       exe 'edit ' . fname  
+    endif
 endfunction	
 
 
@@ -93,22 +137,26 @@ function! s:RunWhereis(...)
 	echo "Cancelled."    
         return
     endif
-    
+                  
     let WhereisDir = input("Start DIRs: ", g:WhereisDir)
     if WhereisDir == ""
 	    echo "Cancelled."    
 	    return
-    endif        
+    endif            
     " Here is Win32 Mode only use internal 'dir' command search through 
     " subdirectory 
     let cmd = 'dir ' . pattern . '/S /B'  " in Bare mode
-    
-    let last_cd = getcwd()
-    exe 'cd ' . WhereisDir
-    call s:RunWhereisCmd(cmd, pattern)
-    exe 'cd ' . last_cd
 
-   if filereadable(Whereis_Output)
+    if isdirectory (WhereisDir) 
+      let last_cd = getcwd()
+      exe 'cd ' . WhereisDir
+      call s:RunWhereisCmd(cmd, pattern)
+      exe 'cd ' . last_cd
+    else 
+      echomsg "Invaild directory"
+      return       
+    endif
+    if filereadable(Whereis_Output)
         setlocal modifiable 
         exe 'edit ' . Whereis_Output
         setlocal nomodifiable
